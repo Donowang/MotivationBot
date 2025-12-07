@@ -13,8 +13,8 @@ from discord import app_commands
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
 TOKEN = os.getenv("TOKEN")  # configure dans Railway: ton token Discord
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "18"))
-NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "0"))
+NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "8"))
+NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "42"))
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
