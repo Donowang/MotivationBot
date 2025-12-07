@@ -41,43 +41,45 @@ tree = app_commands.CommandTree(bot)
 stop_notifications = False
 test_task = None
 stop_test = False
-next_notification_time = None  # datetime de la prochaine notification
+next_notification_time = None
+timer_message = None
 
 def is_weekday():
     now = datetime.utcnow() + timedelta(hours=1)  # UTC+1
     return now.weekday() < 5
 
-# ----- NOTIFICATIONS TOUTES LES 2H30 -----
+# ----- NOTIFICATIONS TOUTES LES 2H30 AVEC TIMER -----
 async def send_periodic_motivation():
-    global stop_notifications, next_notification_time
+    global stop_notifications, next_notification_time, timer_message
     interval = timedelta(hours=2, minutes=30)
     now = datetime.utcnow() + timedelta(hours=1)
     next_notification_time = now + interval
+
+    channel = await bot.fetch_channel(CHANNEL_ID)
+    if not channel:
+        return
+
+    # Crée le message timer si nécessaire
+    if timer_message is None:
+        timer_message = await channel.send("⏳ Prochain rappel dans 2h30:00")
+
     while True:
         now = datetime.utcnow() + timedelta(hours=1)
         if is_weekday() and not stop_notifications:
             if now >= next_notification_time:
-                channel = await bot.fetch_channel(CHANNEL_ID)
-                if channel:
-                    phrase = random.choice(phrases)
-                    await channel.send(f"[MOTIVATION] {phrase}")
-                    print(f"[INFO] Message envoyé à {now}")
+                phrase = random.choice(phrases)
+                await channel.send(f"[MOTIVATION] {phrase}")
+                print(f"[INFO] Message envoyé à {now}")
                 next_notification_time = now + interval
-        await asyncio.sleep(30)  # vérifie toutes les 30s
 
-# ----- COMPTE À REBOURS -----
-@tree.command(name="prochaine", description="Affiche le temps avant la prochaine notification")
-async def prochaine_command(interaction: discord.Interaction):
-    if next_notification_time is None:
-        await interaction.response.send_message("⏱ Calcul du prochain rappel...")
-        return
-    now = datetime.utcnow() + timedelta(hours=1)
-    delta = next_notification_time - now
-    heures, reste = divmod(int(delta.total_seconds()), 3600)
-    minutes, secondes = divmod(reste, 60)
-    await interaction.response.send_message(
-        f"⏱ Prochaine notification dans {heures}h {minutes}m {secondes}s"
-    )
+        # Met à jour le timer toutes les secondes
+        remaining = int((next_notification_time - now).total_seconds())
+        if remaining < 0:
+            remaining = 0
+        heures, reste = divmod(remaining, 3600)
+        minutes, secondes = divmod(reste, 60)
+        await timer_message.edit(content=f"⏳ Prochain rappel dans {heures:02d}:{minutes:02d}:{secondes:02d}")
+        await asyncio.sleep(1)
 
 # ----- TASK TEST RAPIDE (30s) -----
 async def send_test_phrases():
@@ -111,6 +113,19 @@ async def stopteste_command(interaction: discord.Interaction):
     stop_test = True
     await interaction.response.send_message("Test arrêté.", ephemeral=True)
 
+@tree.command(name="prochaine", description="Affiche le temps avant la prochaine notification")
+async def prochaine_command(interaction: discord.Interaction):
+    if next_notification_time is None:
+        await interaction.response.send_message("⏱ Calcul du prochain rappel...")
+        return
+    now = datetime.utcnow() + timedelta(hours=1)
+    delta = next_notification_time - now
+    heures, reste = divmod(int(delta.total_seconds()), 3600)
+    minutes, secondes = divmod(reste, 60)
+    await interaction.response.send_message(
+        f"⏱ Prochaine notification dans {heures}h {minutes}m {secondes}s"
+    )
+
 # ----- BOT READY -----
 @bot.event
 async def on_ready():
@@ -126,4 +141,3 @@ if not TOKEN:
     print("ERROR: TOKEN non défini")
 else:
     bot.run(TOKEN)
- 
