@@ -6,7 +6,6 @@ import random
 import asyncio
 from datetime import datetime, timedelta
 import discord
-from discord.ext import tasks
 from discord import app_commands
 
 # ----- CONFIG -----
@@ -52,10 +51,12 @@ def is_weekday():
 async def send_periodic_motivation():
     global stop_notifications, next_notification_time, timer_message
     interval = timedelta(minutes=3)  # TEST : toutes les 3 minutes
+
     channel = await bot.fetch_channel(CHANNEL_ID)
     if not channel:
         return
 
+    # Initialise le timer
     now = datetime.utcnow() + timedelta(hours=1)
     next_notification_time = now + interval
 
@@ -64,19 +65,21 @@ async def send_periodic_motivation():
 
     while True:
         now = datetime.utcnow() + timedelta(hours=1)
-        # Envoi du message si c'est un jour de semaine et que les notifications ne sont pas stoppées
+
+        # Envoi de la phrase aléatoire si timer écoulé
         if is_weekday() and not stop_notifications and now >= next_notification_time:
             phrase = random.choice(phrases)
             await channel.send(f"[MOTIVATION] {phrase}")
             print(f"[INFO] Message envoyé à {now}")
             next_notification_time = now + interval  # relance le timer
 
-        # Mise à jour du compte à rebours
+        # Calcul et mise à jour du compte à rebours
         remaining = int((next_notification_time - now).total_seconds())
         if remaining < 0:
             remaining = 0
         minutes, secondes = divmod(remaining, 60)
-        await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
+        if timer_message:
+            await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
 
         await asyncio.sleep(1)
 
