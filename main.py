@@ -6,7 +6,6 @@ import os
 import random
 import asyncio
 from datetime import datetime
-import zoneinfo  # Python 3.9+
 import discord
 from discord.ext import tasks
 from discord import app_commands
@@ -14,10 +13,8 @@ from discord import app_commands
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
 TOKEN = os.getenv("TOKEN")  # Discord Bot Token
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = 9    # Heure française
-NOTIF_MINUTE = 47
-
-FR_TZ = zoneinfo.ZoneInfo("Europe/Paris")  # Fuseau horaire France
+NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "9"))  # Heure française
+NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "55"))
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
@@ -54,8 +51,12 @@ test_task = None
 stop_test = False
 
 def is_weekday():
-    """Vérifie si c'est un jour de semaine"""
-    return datetime.now(FR_TZ).weekday() < 5  # 0=lundi
+    """Vérifie si c'est un jour de semaine (UTC+1 pour France)"""
+    now = datetime.utcnow()
+    hour = now.hour + 1
+    if hour >= 24:
+        hour -= 24
+    return now.weekday() < 5
 
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
@@ -65,8 +66,13 @@ async def send_motivation():
     if stop_today or not is_weekday():
         return
 
-    now = datetime.now(FR_TZ)
-    if now.hour == NOTIF_HOUR and now.minute == NOTIF_MINUTE:
+    now_utc = datetime.utcnow()
+    now_hour = now_utc.hour + 1  # UTC+1
+    now_minute = now_utc.minute
+    if now_hour >= 24:
+        now_hour -= 24
+
+    if (now_hour > NOTIF_HOUR) or (now_hour == NOTIF_HOUR and now_minute >= NOTIF_MINUTE):
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
             phrase = random.choice(phrases)
@@ -117,6 +123,10 @@ async def stopteste_command(interaction: discord.Interaction):
 async def on_ready():
     print(f'Connecté en tant que {bot.user}')
     await tree.sync()
+    # Test immédiat pour vérifier permissions
+    channel = await bot.fetch_channel(CHANNEL_ID)
+    if channel:
+        await channel.send("✅ Bot ready et permissions OK !")
     send_motivation.start()
 
 # ----- LANCEMENT -----
