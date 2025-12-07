@@ -6,19 +6,18 @@ import os
 import random
 import asyncio
 from datetime import datetime
-import zoneinfo  # pour gérer le fuseau horaire
+import zoneinfo  # Python 3.9+
 import discord
 from discord.ext import tasks
 from discord import app_commands
 
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("TOKEN")  # Discord Bot Token
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "14"))   # Exemple : 14h30
+NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "14"))  # Heure française
 NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "30"))
 
-# Zone France
-FR_TZ = zoneinfo.ZoneInfo("Europe/Paris")
+FR_TZ = zoneinfo.ZoneInfo("Europe/Paris")  # Fuseau horaire France
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
@@ -55,16 +54,17 @@ test_task = None
 stop_test = False
 
 def is_weekday():
-    return datetime.now(tz=FR_TZ).weekday() < 5  # 0=lundi, 4=vendredi
+    return datetime.now(FR_TZ).weekday() < 5  # 0=lundi
 
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
 async def send_motivation():
+    """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE"""
     global stop_today
     if stop_today or not is_weekday():
         return
 
-    now = datetime.now(tz=FR_TZ)
+    now = datetime.now(FR_TZ)
     if now.hour == NOTIF_HOUR and now.minute == NOTIF_MINUTE:
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
@@ -74,6 +74,7 @@ async def send_motivation():
 
 # ----- TASK TEST RAPIDE (30s) -----
 async def send_test_phrases():
+    """Envoie un message toutes les 30s pour tester le bot"""
     global stop_test
     channel = await bot.fetch_channel(CHANNEL_ID)
     while not stop_test:
@@ -122,5 +123,3 @@ if not TOKEN:
     print("ERROR: TOKEN non défini dans les variables d'environnement.")
 else:
     bot.run(TOKEN)
-
-
