@@ -1,21 +1,19 @@
-# main.py — Bot sécurisé pour Railway/Replit (Keep-alive + /teste 30s + notifications quotidiennes)
+# main.py — Notifications toutes les 2h30 + /muscufais + compte à rebours
 from flask import Flask
 import threading
 import os
 import random
 import asyncio
-from datetime import datetime, date
+from datetime import datetime, timedelta
 import discord
 from discord.ext import tasks
 from discord import app_commands
 
-# ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
-TOKEN = os.getenv("TOKEN")  # Discord Bot Token
+# ----- CONFIG -----
+TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "10"))  # Heure française
-NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "12"))
 
-# ----- KEEP-ALIVE (Flask) -----
+# ----- KEEP-ALIVE -----
 app = Flask(__name__)
 @app.route('/')
 def home():
@@ -28,12 +26,9 @@ threading.Thread(target=run_flask).start()
 # ----- DISCORD BOT -----
 phrases = [
     "Tu crois que tu vas te muscler comme ça ?!",
-    "Regarde comment il te regarde...",
-    "Tu veux rester moche toute ta vie ?",
     "Bouge-toi !",
     "Courage, ça vaut le coup !",
     "Allez, donne tout !",
-    "Rien ne tombe du ciel, faut bosser !",
     "Chaque effort compte !",
 ]
 
@@ -43,40 +38,46 @@ bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 
 # ----- VARIABLES -----
-last_sent_date = None  # date à laquelle la notification a été envoyée
+stop_notifications = False
 test_task = None
 stop_test = False
+next_notification_time = None  # datetime de la prochaine notification
 
 def is_weekday():
-    """Vérifie si c'est un jour de semaine (UTC+1 pour France)"""
-    now_utc = datetime.utcnow()
-    return now_utc.weekday() < 5
+    now = datetime.utcnow() + timedelta(hours=1)  # UTC+1
+    return now.weekday() < 5
 
-# ----- NOTIFICATIONS QUOTIDIENNES -----
-@tasks.loop(seconds=60)
-async def send_motivation():
-    """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE (heure française)"""
-    global last_sent_date
+# ----- NOTIFICATIONS TOUTES LES 2H30 -----
+async def send_periodic_motivation():
+    global stop_notifications, next_notification_time
+    interval = timedelta(hours=2, minutes=30)
+    now = datetime.utcnow() + timedelta(hours=1)
+    next_notification_time = now + interval
+    while True:
+        now = datetime.utcnow() + timedelta(hours=1)
+        if is_weekday() and not stop_notifications:
+            if now >= next_notification_time:
+                channel = await bot.fetch_channel(CHANNEL_ID)
+                if channel:
+                    phrase = random.choice(phrases)
+                    await channel.send(f"[MOTIVATION] {phrase}")
+                    print(f"[INFO] Message envoyé à {now}")
+                next_notification_time = now + interval
+        await asyncio.sleep(30)  # vérifie toutes les 30s
 
-    if not is_weekday():
+# ----- COMPTE À REBOURS -----
+@tree.command(name="prochaine", description="Affiche le temps avant la prochaine notification")
+async def prochaine_command(interaction: discord.Interaction):
+    if next_notification_time is None:
+        await interaction.response.send_message("⏱ Calcul du prochain rappel...")
         return
-
-    now_utc = datetime.utcnow()
-    now_hour = (now_utc.hour + 1) % 24  # UTC+1
-    now_minute = now_utc.minute
-    today = date.today()
-
-    # Debug
-    print(f"[DEBUG] UTC+1 actuel : {now_hour:02d}:{now_minute:02d}, last_sent_date={last_sent_date}")
-
-    # Envoie uniquement si l'heure correspond et pas déjà envoyé aujourd'hui
-    if (now_hour == NOTIF_HOUR and now_minute == NOTIF_MINUTE) and (last_sent_date != today):
-        channel = await bot.fetch_channel(CHANNEL_ID)
-        if channel:
-            phrase = random.choice(phrases)
-            await channel.send(f"[DAILY] {phrase}")
-            print(f"[INFO] Message envoyé à {now_hour:02d}:{now_minute:02d}")
-        last_sent_date = today
+    now = datetime.utcnow() + timedelta(hours=1)
+    delta = next_notification_time - now
+    heures, reste = divmod(int(delta.total_seconds()), 3600)
+    minutes, secondes = divmod(reste, 60)
+    await interaction.response.send_message(
+        f"⏱ Prochaine notification dans {heures}h {minutes}m {secondes}s"
+    )
 
 # ----- TASK TEST RAPIDE (30s) -----
 async def send_test_phrases():
@@ -88,17 +89,11 @@ async def send_test_phrases():
         await asyncio.sleep(30)
 
 # ----- SLASH COMMANDS -----
-@tree.command(name="stop", description="Arrête les notifications pour aujourd'hui")
-async def stop_command(interaction: discord.Interaction):
-    global last_sent_date
-    last_sent_date = date.today()
-    await interaction.response.send_message("Notifications arrêtées pour aujourd'hui.", ephemeral=True)
-
-@tree.command(name="start", description="Relance les notifications si elles étaient stoppées")
-async def start_command(interaction: discord.Interaction):
-    global last_sent_date
-    last_sent_date = None
-    await interaction.response.send_message("Notifications relancées !", ephemeral=True)
+@tree.command(name="muscufais", description="Arrête les notifications pour le reste de la journée")
+async def muscufais_command(interaction: discord.Interaction):
+    global stop_notifications
+    stop_notifications = True
+    await interaction.response.send_message("💪 Notifications arrêtées pour aujourd'hui.", ephemeral=True)
 
 @tree.command(name="teste", description="Teste l'envoi toutes les 30 sec d'une phrase")
 async def teste_command(interaction: discord.Interaction):
@@ -121,14 +116,14 @@ async def stopteste_command(interaction: discord.Interaction):
 async def on_ready():
     print(f'Connecté en tant que {bot.user}')
     await tree.sync()
-    # Test immédiat pour vérifier permissions (NE PAS modifier last_sent_date)
     channel = await bot.fetch_channel(CHANNEL_ID)
     if channel:
         await channel.send("✅ Bot ready et permissions OK !")
-    send_motivation.start()
+    bot.loop.create_task(send_periodic_motivation())
 
 # ----- LANCEMENT -----
 if not TOKEN:
-    print("ERROR: TOKEN non défini dans les variables d'environnement.")
+    print("ERROR: TOKEN non défini")
 else:
     bot.run(TOKEN)
+ 
