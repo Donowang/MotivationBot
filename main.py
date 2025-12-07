@@ -11,7 +11,7 @@ from discord.ext import tasks
 from discord import app_commands
 
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
-TOKEN = os.getenv("TOKEN")  # configure dans Railway: ton token Discord
+TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
 NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "8"))
 NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "42"))
@@ -56,6 +56,7 @@ def is_weekday():
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
 async def send_motivation():
+    """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE"""
     global stop_today
     if stop_today or not is_weekday():
         return
@@ -65,16 +66,17 @@ async def send_motivation():
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
             phrase = random.choice(phrases)
-            await channel.send(phrase)
+            await channel.send(f"[DAILY] {phrase}")
         stop_today = True
 
-# ----- TASK POUR /TESTE (30s) -----
+# ----- TASK TEST RAPIDE (30s) -----
 async def send_test_phrases():
+    """Envoie un message toutes les 30s pour tester le bot"""
     global stop_test
     channel = await bot.fetch_channel(CHANNEL_ID)
     while not stop_test:
         phrase = random.choice(phrases)
-        await channel.send(f"[TEST] {phrase}")
+        await channel.send(f"[TEST 30s] {phrase}")
         await asyncio.sleep(30)
 
 # ----- SLASH COMMANDS -----
@@ -118,3 +120,4 @@ if not TOKEN:
     print("ERROR: TOKEN non défini dans les variables d'environnement.")
 else:
     bot.run(TOKEN)
+
