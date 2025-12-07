@@ -13,8 +13,8 @@ from discord import app_commands
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
 TOKEN = os.getenv("TOKEN")  # Discord Bot Token
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "9"))  # Heure française
-NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "27"))
+NOTIF_HOUR = 9    # Heure locale de Railway (UTC+1) pour la notification
+NOTIF_MINUTE = 36
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
@@ -52,26 +52,18 @@ stop_test = False
 
 def is_weekday():
     """Vérifie si c'est un jour de semaine"""
-    return datetime.utcnow().weekday() < 5  # UTC sur Railway (UTC+1 pour toi)
+    return datetime.now().weekday() < 5  # utilise l'heure locale de Railway (UTC+1)
 
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
 async def send_motivation():
-    """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE (heure française)"""
+    """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE"""
     global stop_today
     if stop_today or not is_weekday():
         return
 
-    now_utc = datetime.utcnow()
-    now_hour = now_utc.hour + 1  # UTC+1
-    now_minute = now_utc.minute
-
-    # Ajuste l'heure si >23
-    if now_hour >= 24:
-        now_hour -= 24
-
-    # Envoi si heure passée ou atteinte
-    if (now_hour > NOTIF_HOUR) or (now_hour == NOTIF_HOUR and now_minute >= NOTIF_MINUTE):
+    now = datetime.now()
+    if now.hour == NOTIF_HOUR and now.minute == NOTIF_MINUTE:
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
             phrase = random.choice(phrases)
