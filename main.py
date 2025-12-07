@@ -1,4 +1,4 @@
-# main.py — Notifications toutes les 2h30 + /muscufais + compte à rebours
+# main.py — Notifications toutes les 3 minutes pour test + /muscufais + compte à rebours
 from flask import Flask
 import threading
 import os
@@ -48,10 +48,10 @@ def is_weekday():
     now = datetime.utcnow() + timedelta(hours=1)  # UTC+1
     return now.weekday() < 5
 
-# ----- NOTIFICATIONS TOUTES LES 2H30 AVEC TIMER -----
+# ----- NOTIFICATIONS TOUTES LES 3 MINUTES (TEST) -----
 async def send_periodic_motivation():
     global stop_notifications, next_notification_time, timer_message
-    interval = timedelta(hours=2, minutes=30)
+    interval = timedelta(minutes=3)  # TEST : toutes les 3 minutes
     now = datetime.utcnow() + timedelta(hours=1)
     next_notification_time = now + interval
 
@@ -59,9 +59,8 @@ async def send_periodic_motivation():
     if not channel:
         return
 
-    # Crée le message timer si nécessaire
     if timer_message is None:
-        timer_message = await channel.send("⏳ Prochain rappel dans 2h30:00")
+        timer_message = await channel.send("⏳ Prochain rappel dans 03:00")
 
     while True:
         now = datetime.utcnow() + timedelta(hours=1)
@@ -72,13 +71,11 @@ async def send_periodic_motivation():
                 print(f"[INFO] Message envoyé à {now}")
                 next_notification_time = now + interval
 
-        # Met à jour le timer toutes les secondes
         remaining = int((next_notification_time - now).total_seconds())
         if remaining < 0:
             remaining = 0
-        heures, reste = divmod(remaining, 3600)
-        minutes, secondes = divmod(reste, 60)
-        await timer_message.edit(content=f"⏳ Prochain rappel dans {heures:02d}:{minutes:02d}:{secondes:02d}")
+        minutes, secondes = divmod(remaining, 60)
+        await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
         await asyncio.sleep(1)
 
 # ----- TASK TEST RAPIDE (30s) -----
@@ -120,10 +117,9 @@ async def prochaine_command(interaction: discord.Interaction):
         return
     now = datetime.utcnow() + timedelta(hours=1)
     delta = next_notification_time - now
-    heures, reste = divmod(int(delta.total_seconds()), 3600)
-    minutes, secondes = divmod(reste, 60)
+    minutes, secondes = divmod(int(delta.total_seconds()), 60)
     await interaction.response.send_message(
-        f"⏱ Prochaine notification dans {heures}h {minutes}m {secondes}s"
+        f"⏱ Prochaine notification dans {minutes}m {secondes}s"
     )
 
 # ----- BOT READY -----
