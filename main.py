@@ -1,11 +1,10 @@
 # main.py — Bot sécurisé pour Railway/Replit (Keep-alive + /teste 30s + notifications quotidiennes)
-
 from flask import Flask
 import threading
 import os
 import random
 import asyncio
-from datetime import datetime
+from datetime import datetime, date
 import discord
 from discord.ext import tasks
 from discord import app_commands
@@ -18,14 +17,12 @@ NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "5"))
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
-
 @app.route('/')
 def home():
     return "Bot is alive!"
 
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
-
 threading.Thread(target=run_flask).start()
 
 # ----- DISCORD BOT -----
@@ -46,42 +43,43 @@ bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 
 # ----- VARIABLES -----
-stop_today = False
+last_sent_date = None  # date à laquelle la notification a été envoyée
 test_task = None
 stop_test = False
 
 def is_weekday():
     """Vérifie si c'est un jour de semaine (UTC+1 pour France)"""
-    now = datetime.utcnow()
-    hour = now.hour + 1
-    if hour >= 24:
-        hour -= 24
-    return now.weekday() < 5
+    now_utc = datetime.utcnow()
+    return now_utc.weekday() < 5
 
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
 async def send_motivation():
     """Notification quotidienne selon NOTIF_HOUR / NOTIF_MINUTE (heure française)"""
-    global stop_today
-    if stop_today or not is_weekday():
+    global last_sent_date
+
+    if not is_weekday():
         return
 
     now_utc = datetime.utcnow()
-    now_hour = now_utc.hour + 1  # UTC+1
+    now_hour = (now_utc.hour + 1) % 24  # UTC+1
     now_minute = now_utc.minute
-    if now_hour >= 24:
-        now_hour -= 24
+    today = date.today()
 
-    if (now_hour > NOTIF_HOUR) or (now_hour == NOTIF_HOUR and now_minute >= NOTIF_MINUTE):
+    # Debug
+    print(f"[DEBUG] UTC+1 actuel : {now_hour:02d}:{now_minute:02d}, last_sent_date={last_sent_date}")
+
+    # Envoie uniquement si l'heure correspond et pas déjà envoyé aujourd'hui
+    if (now_hour == NOTIF_HOUR and now_minute == NOTIF_MINUTE) and (last_sent_date != today):
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
             phrase = random.choice(phrases)
             await channel.send(f"[DAILY] {phrase}")
-        stop_today = True
+            print(f"[INFO] Message envoyé à {now_hour:02d}:{now_minute:02d}")
+        last_sent_date = today
 
 # ----- TASK TEST RAPIDE (30s) -----
 async def send_test_phrases():
-    """Envoie un message toutes les 30s pour tester le bot"""
     global stop_test
     channel = await bot.fetch_channel(CHANNEL_ID)
     while not stop_test:
@@ -92,14 +90,14 @@ async def send_test_phrases():
 # ----- SLASH COMMANDS -----
 @tree.command(name="stop", description="Arrête les notifications pour aujourd'hui")
 async def stop_command(interaction: discord.Interaction):
-    global stop_today
-    stop_today = True
+    global last_sent_date
+    last_sent_date = date.today()
     await interaction.response.send_message("Notifications arrêtées pour aujourd'hui.", ephemeral=True)
 
 @tree.command(name="start", description="Relance les notifications si elles étaient stoppées")
 async def start_command(interaction: discord.Interaction):
-    global stop_today
-    stop_today = False
+    global last_sent_date
+    last_sent_date = None
     await interaction.response.send_message("Notifications relancées !", ephemeral=True)
 
 @tree.command(name="teste", description="Teste l'envoi toutes les 30 sec d'une phrase")
@@ -123,7 +121,7 @@ async def stopteste_command(interaction: discord.Interaction):
 async def on_ready():
     print(f'Connecté en tant que {bot.user}')
     await tree.sync()
-    # Test immédiat pour vérifier permissions
+    # Test immédiat pour vérifier permissions (NE PAS modifier last_sent_date)
     channel = await bot.fetch_channel(CHANNEL_ID)
     if channel:
         await channel.send("✅ Bot ready et permissions OK !")
