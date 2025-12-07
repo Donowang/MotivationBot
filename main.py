@@ -52,30 +52,32 @@ def is_weekday():
 async def send_periodic_motivation():
     global stop_notifications, next_notification_time, timer_message
     interval = timedelta(minutes=3)  # TEST : toutes les 3 minutes
-    now = datetime.utcnow() + timedelta(hours=1)
-    next_notification_time = now + interval
-
     channel = await bot.fetch_channel(CHANNEL_ID)
     if not channel:
         return
+
+    now = datetime.utcnow() + timedelta(hours=1)
+    next_notification_time = now + interval
 
     if timer_message is None:
         timer_message = await channel.send("⏳ Prochain rappel dans 03:00")
 
     while True:
         now = datetime.utcnow() + timedelta(hours=1)
-        if is_weekday() and not stop_notifications:
-            if now >= next_notification_time:
-                phrase = random.choice(phrases)
-                await channel.send(f"[MOTIVATION] {phrase}")
-                print(f"[INFO] Message envoyé à {now}")
-                next_notification_time = now + interval
+        # Envoi du message si c'est un jour de semaine et que les notifications ne sont pas stoppées
+        if is_weekday() and not stop_notifications and now >= next_notification_time:
+            phrase = random.choice(phrases)
+            await channel.send(f"[MOTIVATION] {phrase}")
+            print(f"[INFO] Message envoyé à {now}")
+            next_notification_time = now + interval  # relance le timer
 
+        # Mise à jour du compte à rebours
         remaining = int((next_notification_time - now).total_seconds())
         if remaining < 0:
             remaining = 0
         minutes, secondes = divmod(remaining, 60)
         await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
+
         await asyncio.sleep(1)
 
 # ----- TASK TEST RAPIDE (30s) -----
@@ -118,9 +120,7 @@ async def prochaine_command(interaction: discord.Interaction):
     now = datetime.utcnow() + timedelta(hours=1)
     delta = next_notification_time - now
     minutes, secondes = divmod(int(delta.total_seconds()), 60)
-    await interaction.response.send_message(
-        f"⏱ Prochaine notification dans {minutes}m {secondes}s"
-    )
+    await interaction.response.send_message(f"⏱ Prochaine notification dans {minutes}m {secondes}s")
 
 # ----- BOT READY -----
 @bot.event
