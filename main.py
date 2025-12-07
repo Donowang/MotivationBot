@@ -13,8 +13,8 @@ from discord import app_commands
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
 TOKEN = os.getenv("TOKEN")  # Discord Bot Token
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "14"))  # Heure du serveur Railway
-NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "30"))
+NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "9"))  # Heure du serveur Railway
+NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "20"))
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
