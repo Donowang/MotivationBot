@@ -6,7 +6,6 @@ import os
 import random
 import asyncio
 from datetime import datetime
-import zoneinfo  # Python 3.9+
 import discord
 from discord.ext import tasks
 from discord import app_commands
@@ -14,10 +13,8 @@ from discord import app_commands
 # ----- CONFIG via VARIABLES D'ENVIRONNEMENT -----
 TOKEN = os.getenv("TOKEN")  # Discord Bot Token
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1446940514879275131"))
-NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "14"))  # Heure française
+NOTIF_HOUR = int(os.getenv("NOTIF_HOUR", "14"))  # Heure du serveur Railway
 NOTIF_MINUTE = int(os.getenv("NOTIF_MINUTE", "30"))
-
-FR_TZ = zoneinfo.ZoneInfo("Europe/Paris")  # Fuseau horaire France
 
 # ----- KEEP-ALIVE (Flask) -----
 app = Flask(__name__)
@@ -54,7 +51,7 @@ test_task = None
 stop_test = False
 
 def is_weekday():
-    return datetime.now(FR_TZ).weekday() < 5  # 0=lundi
+    return datetime.now().weekday() < 5  # 0=lundi
 
 # ----- NOTIFICATIONS QUOTIDIENNES -----
 @tasks.loop(seconds=60)
@@ -64,7 +61,7 @@ async def send_motivation():
     if stop_today or not is_weekday():
         return
 
-    now = datetime.now(FR_TZ)
+    now = datetime.now()  # On utilise l'heure du serveur Railway
     if now.hour == NOTIF_HOUR and now.minute == NOTIF_MINUTE:
         channel = await bot.fetch_channel(CHANNEL_ID)
         if channel:
