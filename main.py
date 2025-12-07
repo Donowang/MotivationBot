@@ -38,8 +38,6 @@ tree = app_commands.CommandTree(bot)
 
 # ----- VARIABLES -----
 stop_notifications = False
-test_task = None
-stop_test = False
 next_notification_time = None
 timer_message = None
 
@@ -60,37 +58,36 @@ async def send_periodic_motivation():
     now = datetime.utcnow() + timedelta(hours=1)
     next_notification_time = now + interval
 
+    # Crée le message timer si nécessaire
     if timer_message is None:
         timer_message = await channel.send("⏳ Prochain rappel dans 03:00")
 
     while True:
         now = datetime.utcnow() + timedelta(hours=1)
 
-        # Envoi de la phrase aléatoire si timer écoulé
+        # Envoie la phrase motivante si le timer est écoulé
         if is_weekday() and not stop_notifications and now >= next_notification_time:
             phrase = random.choice(phrases)
             await channel.send(f"[MOTIVATION] {phrase}")
             print(f"[INFO] Message envoyé à {now}")
-            next_notification_time = now + interval  # relance le timer
+            # Relance automatique du timer
+            next_notification_time = now + interval
 
-        # Calcul et mise à jour du compte à rebours
+        # Calcul du compte à rebours
         remaining = int((next_notification_time - now).total_seconds())
         if remaining < 0:
             remaining = 0
         minutes, secondes = divmod(remaining, 60)
+
+        # Met à jour le message timer
         if timer_message:
-            await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
+            try:
+                await timer_message.edit(content=f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
+            except discord.HTTPException:
+                # Si le message a été supprimé, recrée un nouveau message
+                timer_message = await channel.send(f"⏳ Prochain rappel dans {minutes:02d}:{secondes:02d}")
 
         await asyncio.sleep(1)
-
-# ----- TASK TEST RAPIDE (30s) -----
-async def send_test_phrases():
-    global stop_test
-    channel = await bot.fetch_channel(CHANNEL_ID)
-    while not stop_test:
-        phrase = random.choice(phrases)
-        await channel.send(f"[TEST 30s] {phrase}")
-        await asyncio.sleep(30)
 
 # ----- SLASH COMMANDS -----
 @tree.command(name="muscufais", description="Arrête les notifications pour le reste de la journée")
@@ -98,22 +95,6 @@ async def muscufais_command(interaction: discord.Interaction):
     global stop_notifications
     stop_notifications = True
     await interaction.response.send_message("💪 Notifications arrêtées pour aujourd'hui.", ephemeral=True)
-
-@tree.command(name="teste", description="Teste l'envoi toutes les 30 sec d'une phrase")
-async def teste_command(interaction: discord.Interaction):
-    global test_task, stop_test
-    if test_task and not test_task.done():
-        await interaction.response.send_message("Le test est déjà en cours !", ephemeral=True)
-        return
-    stop_test = False
-    await interaction.response.send_message("Test démarré : phrases envoyées toutes les 30 sec.", ephemeral=True)
-    test_task = bot.loop.create_task(send_test_phrases())
-
-@tree.command(name="stopteste", description="Arrête le test des phrases toutes les 30 sec")
-async def stopteste_command(interaction: discord.Interaction):
-    global stop_test
-    stop_test = True
-    await interaction.response.send_message("Test arrêté.", ephemeral=True)
 
 @tree.command(name="prochaine", description="Affiche le temps avant la prochaine notification")
 async def prochaine_command(interaction: discord.Interaction):
@@ -133,6 +114,7 @@ async def on_ready():
     channel = await bot.fetch_channel(CHANNEL_ID)
     if channel:
         await channel.send("✅ Bot ready et permissions OK !")
+    # Lance le timer en tâche parallèle
     bot.loop.create_task(send_periodic_motivation())
 
 # ----- LANCEMENT -----
